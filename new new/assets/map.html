@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Select Destination</title>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA_L0Ptgg6Oxc45SQGs0uD9BNj70pZ62-k&callback=initMap" async defer></script>
+    <style>
+        #map {
+            height: 500px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <h1>Select Your Destination</h1>
+    <div id="map"></div>
+    <script>
+        let map, marker, destinationCoords;
+
+        function getUserLocation() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            console.log(`User's Location: ${lat}, ${lng}`);
+            
+            const userLocation = new google.maps.LatLng(lat, lng);
+            map.setCenter(userLocation);
+            new google.maps.Marker({
+                position: userLocation,
+                map: map,
+                title: "You are here!"
+            });
+
+            trackLocation(lat, lng);
+        }, function(error) {
+            console.error("Geolocation error:", error); // Add this line
+            alert("Unable to retrieve your location.");
+        });
+    } else {
+        alert("Geolocation is not supported by this browser.");
+    }
+}
+
+
+        function trackLocation(currentLat, currentLng) {
+            if (destinationCoords) {
+                fetch('/track_location', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        current_lat: currentLat,
+                        current_lng: currentLng,
+                        destination_lat: destinationCoords.lat,
+                        destination_lng: destinationCoords.lng
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'alarm') {
+                        alert('You are within 1 km of your destination!');
+                    }
+                })
+                .catch((error) => console.error('Error:', error));
+            }
+        }
+
+        function initMap() {
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: {lat: -34.397, lng: 150.644},  // Default center
+                zoom: 8
+            });
+
+            getUserLocation();
+
+            map.addListener('click', function(event) {
+                if (marker) marker.setMap(null);
+                
+                marker = new google.maps.Marker({
+                    position: event.latLng,
+                    map: map
+                });
+
+                destinationCoords = {
+                    lat: event.latLng.lat(),
+                    lng: event.latLng.lng()
+                };
+
+                console.log(`Selected Destination: ${destinationCoords.lat}, ${destinationCoords.lng}`);
+                
+                fetch('/get_destination', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ lat: destinationCoords.lat, lng: destinationCoords.lng })
+                })
+                .then(response => response.text())
+                .then(data => console.log(data))
+                .catch((error) => console.error('Error:', error));
+            });
+
+            setInterval(getUserLocation, 10000);  // Check user location every 10 seconds
+        }
+    </script>
+</body>
+</html>
